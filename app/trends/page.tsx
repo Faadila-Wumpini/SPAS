@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, BarChart3, Calendar } from "lucide-react"
+import { TrendingUp, BarChart3, Calendar, Database } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
+import { getAllRegions, getTrendsData, loadPowerData } from "@/lib/power-data-service"
 
 interface TrendData {
   time: string
@@ -17,44 +18,43 @@ interface TrendData {
 export default function TrendsPage() {
   const [timeRange, setTimeRange] = useState("24h")
   const [selectedMetric, setSelectedMetric] = useState("voltage")
+  const [selectedRegion, setSelectedRegion] = useState<string>("All Regions")
   const [trendData, setTrendData] = useState<TrendData[]>([])
+  const [regions, setRegions] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Generate sample trend data
+  // Load regions on component mount
   useEffect(() => {
-    const generateData = () => {
-      const data: TrendData[] = []
-      const hours = timeRange === "24h" ? 24 : timeRange === "7d" ? 168 : 720 // 24h, 7d, 30d
-      const interval = timeRange === "24h" ? 1 : timeRange === "7d" ? 6 : 24
-
-      for (let i = 0; i < hours; i += interval) {
-        const baseVoltage = 230 + Math.sin(i / 12) * 5 // Daily pattern
-        const voltageNoise = (Math.random() - 0.5) * 10
-        const voltage = Math.max(200, Math.min(250, baseVoltage + voltageNoise))
-
-        const baseFrequency = 50 + Math.sin(i / 8) * 0.5
-        const frequencyNoise = (Math.random() - 0.5) * 1
-        const frequency = Math.max(49, Math.min(51, baseFrequency + frequencyNoise))
-
-        const stability = Math.max(0, Math.min(100, 100 - Math.abs(voltage - 230) * 2 - Math.abs(frequency - 50) * 10))
-
-        const date = new Date()
-        date.setHours(date.getHours() - (hours - i))
-
-        data.push({
-          time:
-            timeRange === "24h"
-              ? date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
-              : date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-          voltage: Math.round(voltage * 10) / 10,
-          frequency: Math.round(frequency * 10) / 10,
-          stability: Math.round(stability),
-        })
+    const loadRegions = async () => {
+      try {
+        const regionList = await getAllRegions()
+        setRegions(["All Regions", ...regionList])
+        setIsLoading(false)
+      } catch (error) {
+        console.error('Error loading regions:', error)
+        setIsLoading(false)
       }
-      return data
     }
+    
+    loadRegions()
+  }, [])
 
-    setTrendData(generateData())
-  }, [timeRange])
+  // Load trend data when timeRange or selectedRegion changes
+  useEffect(() => {
+    const loadTrends = async () => {
+      try {
+        const regionName = selectedRegion === "All Regions" ? undefined : selectedRegion
+        const trends = await getTrendsData(regionName)
+        setTrendData(trends)
+      } catch (error) {
+        console.error('Error loading trends data:', error)
+      }
+    }
+    
+    if (!isLoading) {
+      loadTrends()
+    }
+  }, [timeRange, selectedRegion, isLoading])
 
   const averageVoltage = trendData.reduce((sum, d) => sum + d.voltage, 0) / trendData.length
   const averageFrequency = trendData.reduce((sum, d) => sum + d.frequency, 0) / trendData.length
@@ -76,13 +76,33 @@ export default function TrendsPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">Power Quality Trends</h1>
-          <p className="text-gray-600">Historical analysis of power stability and quality</p>
+        <div className="text-center space-y-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <TrendingUp className="h-8 w-8 text-purple-600" />
+            <h1 className="text-3xl font-bold text-gray-900">Power Quality Trends</h1>
+          </div>
+          <p className="text-gray-600">Historical analysis of power stability and quality across Ghana</p>
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <Database className="h-4 w-4" />
+            <span>Real-time data from Ghana Power Grid</span>
+          </div>
         </div>
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue placeholder="Select region" />
+            </SelectTrigger>
+            <SelectContent>
+              {regions.map((region) => (
+                <SelectItem key={region} value={region}>
+                  {region}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="Select time range" />
@@ -107,49 +127,61 @@ export default function TrendsPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Average Voltage</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{averageVoltage.toFixed(1)}V</div>
-              <div className="flex items-center text-xs text-gray-600 mt-1">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                Normal range: 220-240V
-              </div>
-            </CardContent>
-          </Card>
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="text-lg text-gray-600">Loading trend data...</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Average Voltage {selectedRegion !== "All Regions" && `- ${selectedRegion}`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">{averageVoltage.toFixed(1)}V</div>
+                <div className="flex items-center text-xs text-gray-600 mt-1">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Normal range: 220-240V
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Average Frequency</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{averageFrequency.toFixed(1)}Hz</div>
-              <div className="flex items-center text-xs text-gray-600 mt-1">
-                <TrendingUp className="h-3 w-3 mr-1" />
-                Target: 50Hz ±1Hz
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Average Frequency {selectedRegion !== "All Regions" && `- ${selectedRegion}`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{averageFrequency.toFixed(1)}Hz</div>
+                <div className="flex items-center text-xs text-gray-600 mt-1">
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Target: 50Hz ±1Hz
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Power Stability</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${getStabilityColor(averageStability)}`}>
-                {averageStability.toFixed(0)}%
-              </div>
-              <div className="flex items-center justify-between mt-1">
-                <Badge variant={getStabilityBadge(averageStability).variant}>
-                  {getStabilityBadge(averageStability).label}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Power Stability {selectedRegion !== "All Regions" && `- ${selectedRegion}`}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold ${getStabilityColor(averageStability)}`}>
+                  {averageStability.toFixed(0)}%
+                </div>
+                <div className="flex items-center justify-between mt-1">
+                  <Badge variant={getStabilityBadge(averageStability).variant}>
+                    {getStabilityBadge(averageStability).label}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Main Chart */}
         <Card>
@@ -167,8 +199,13 @@ export default function TrendsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
+            {trendData.length === 0 ? (
+              <div className="h-80 flex items-center justify-center text-gray-500">
+                Loading chart data...
+              </div>
+            ) : (
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
                 {selectedMetric === "stability" ? (
                   <BarChart data={trendData}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -192,8 +229,9 @@ export default function TrendsPage() {
                     />
                   </LineChart>
                 )}
-              </ResponsiveContainer>
-            </div>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
 

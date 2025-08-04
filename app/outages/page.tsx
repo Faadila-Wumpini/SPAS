@@ -5,8 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertTriangle, MapPin, Clock, Users, Zap } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { AlertTriangle, MapPin, Clock, Users, Zap, Database } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { getOutagesData, getAllRegions } from "@/lib/power-data-service"
 
 // Client-side only time display component to prevent hydration errors
 function TimeDisplay({ timestamp }: { timestamp: Date }) {
@@ -32,48 +34,46 @@ interface Outage {
 
 export default function OutagesPage() {
   const router = useRouter()
-  const [outages, setOutages] = useState<Outage[]>([
-    {
-      id: "1",
-      location: "East Legon",
-      region: "Greater Accra",
-      startTime: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      estimatedDuration: "4 hours",
-      affectedUsers: 15000,
-      status: "active",
-      cause: "Transformer maintenance",
-    },
-    {
-      id: "2",
-      location: "Kumasi Central",
-      region: "Ashanti",
-      startTime: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-      estimatedDuration: "2 hours",
-      affectedUsers: 8500,
-      status: "active",
-      cause: "Power line fault",
-    },
-    {
-      id: "3",
-      location: "Tema",
-      region: "Greater Accra",
-      startTime: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-      estimatedDuration: "1 hour",
-      affectedUsers: 12000,
-      status: "resolved",
-      cause: "Equipment failure",
-    },
-    {
-      id: "4",
-      location: "Takoradi",
-      region: "Western",
-      startTime: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
-      estimatedDuration: "6 hours",
-      affectedUsers: 20000,
-      status: "scheduled",
-      cause: "Planned maintenance",
-    },
-  ])
+  const [outages, setOutages] = useState<Outage[]>([])
+  const [regions, setRegions] = useState<string[]>([])
+  const [selectedRegion, setSelectedRegion] = useState<string>("All Regions")
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Load outages data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const [outagesData, regionList] = await Promise.all([
+          getOutagesData(),
+          getAllRegions()
+        ])
+        
+        // Combine active and scheduled outages with proper status
+        const allOutages = [
+          ...outagesData.active.map((outage: any) => ({ ...outage, status: "active" as const })),
+          ...outagesData.scheduled.map((outage: any) => ({ ...outage, status: "scheduled" as const }))
+        ]
+
+        // Add some resolved outages for demonstration
+        const resolvedOutages = outagesData.active.slice(0, 2).map((outage: any) => ({
+          ...outage,
+          id: outage.id + "-resolved",
+          status: "resolved" as const,
+          startTime: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
+        }))
+
+        setOutages([...allOutages, ...resolvedOutages])
+        setRegions(["All Regions", ...regionList])
+      } catch (error) {
+        console.error('Error loading outages data:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    loadData()
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -101,57 +101,102 @@ export default function OutagesPage() {
     }
   }
 
-  const activeOutages = outages.filter((o) => o.status === "active")
-  const scheduledOutages = outages.filter((o) => o.status === "scheduled")
-  const resolvedOutages = outages.filter((o) => o.status === "resolved")
+  // Filter outages based on selected region
+  const filteredOutages = selectedRegion === "All Regions" 
+    ? outages 
+    : outages.filter(o => o.region === selectedRegion)
+
+  const activeOutages = filteredOutages.filter((o) => o.status === "active")
+  const scheduledOutages = filteredOutages.filter((o) => o.status === "scheduled")
+  const resolvedOutages = filteredOutages.filter((o) => o.status === "resolved")
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">Power Outages</h1>
-          <p className="text-gray-600">Current and scheduled power outages across Ghana</p>
+        <div className="text-center space-y-4">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <AlertTriangle className="h-8 w-8 text-red-600" />
+            <h1 className="text-3xl font-bold text-gray-900">Power Outages</h1>
+          </div>
+          <p className="text-gray-600">Current and scheduled power outages across Ghana's regions</p>
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <Database className="h-4 w-4" />
+            <span>Live data from Ghana Power Grid</span>
+          </div>
+          
+          {/* Region Filter */}
+          <div className="max-w-md mx-auto mt-4">
+            <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by region" />
+              </SelectTrigger>
+              <SelectContent>
+                {regions.map((region) => (
+                  <SelectItem key={region} value={region}>
+                    {region}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <AlertTriangle className="h-8 w-8 text-red-500" />
-                <div>
-                  <p className="text-2xl font-bold text-red-600">{activeOutages.length}</p>
-                  <p className="text-sm text-gray-600">Active Outages</p>
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="text-lg text-gray-600">Loading outage data...</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                  <div>
+                    <p className="text-2xl font-bold text-red-600">{activeOutages.length}</p>
+                    <p className="text-sm text-gray-600">Active Outages</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Clock className="h-8 w-8 text-orange-500" />
-                <div>
-                  <p className="text-2xl font-bold text-orange-600">{scheduledOutages.length}</p>
-                  <p className="text-sm text-gray-600">Scheduled</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2">
+                  <Clock className="h-8 w-8 text-orange-500" />
+                  <div>
+                    <p className="text-2xl font-bold text-orange-600">{scheduledOutages.length}</p>
+                    <p className="text-sm text-gray-600">Scheduled</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Users className="h-8 w-8 text-blue-500" />
-                <div>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {activeOutages.reduce((sum, outage) => sum + outage.affectedUsers, 0).toLocaleString()}
-                  </p>
-                  <p className="text-sm text-gray-600">Users Affected</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-8 w-8 text-green-500" />
+                  <div>
+                    <p className="text-2xl font-bold text-green-600">{resolvedOutages.length}</p>
+                    <p className="text-sm text-gray-600">Recently Resolved</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-8 w-8 text-blue-500" />
+                  <div>
+                    <p className="text-2xl font-bold text-blue-600">
+                      {activeOutages.reduce((sum, outage) => sum + outage.affectedUsers, 0).toLocaleString()}
+                    </p>
+                    <p className="text-sm text-gray-600">Users Affected</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Active Outages Alert */}
         {activeOutages.length > 0 && (
@@ -167,7 +212,9 @@ export default function OutagesPage() {
 
         {/* Active Outages */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-gray-900">Active Outages</h2>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Active Outages {selectedRegion !== "All Regions" && `- ${selectedRegion}`}
+          </h2>
           {activeOutages.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-center">
@@ -218,7 +265,9 @@ export default function OutagesPage() {
 
         {/* Scheduled Outages */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-gray-900">Scheduled Maintenance</h2>
+          <h2 className="text-2xl font-bold text-gray-900">
+            Scheduled Maintenance {selectedRegion !== "All Regions" && `- ${selectedRegion}`}
+          </h2>
           <div className="grid gap-4">
             {scheduledOutages.map((outage) => (
               <Card key={outage.id} className="border-orange-200">

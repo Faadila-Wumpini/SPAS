@@ -2,3 +2,4 @@
 /.next
 /backend/node_modules
 /backend/.next
+/lib/generated/prisma

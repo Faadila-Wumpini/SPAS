@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useSession, signOut } from "next-auth/react"
+import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { Zap, Menu, Home, AlertTriangle, TrendingUp, HelpCircle, Phone, Info, Settings, LogOut, Mail } from "lucide-react"
@@ -22,10 +22,10 @@ const navigation = [
 export function Navigation() {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
-  const { data: session, status } = useSession()
+  const { user, logout } = useAuth()
 
-  const handleLogout = () => {
-    signOut({ callbackUrl: "/" })
+  const handleLogout = async () => {
+    await logout()
   }
 
   return (
@@ -85,7 +85,7 @@ export function Navigation() {
                 
                 {/* Authentication buttons for mobile */}
                 <div className="pt-4 border-t">
-                  {!session ? (
+                  {!user ? (
                     <>
                       <Link
                         href="/auth/login"
@@ -105,7 +105,7 @@ export function Navigation() {
                   ) : (
                     <div className="space-y-2">
                       <div className="text-sm text-gray-600">
-                        Hi, {session.user?.name || session.user?.email}!
+                        Hi, {user.name || user.email}!
                       </div>
                       <button
                         onClick={() => {
@@ -132,7 +132,7 @@ export function Navigation() {
             </Link>
           </div>
           <div className="hidden md:flex items-center space-x-2">
-            {!session ? (
+            {!user ? (
               <>
                 <Link href="/auth/login">
                   <Button variant="ghost" size="sm">
@@ -148,7 +148,7 @@ export function Navigation() {
             ) : (
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-600">
-                  Hi, {session.user?.name || session.user?.email}!
+                  Hi, {user.name || user.email}!
                 </span>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-1" />
