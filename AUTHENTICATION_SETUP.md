@@ -1,17 +1,27 @@
 # SPAS Authentication System Setup Guide
 
+<style>
+body { font-size: 12px; }
+h1 { font-size: 18px; }
+h2 { font-size: 16px; }
+h3 { font-size: 14px; }
+h4 { font-size: 13px; }
+p, li { font-size: 11px; }
+code { font-size: 10px; }
+</style>
+
 ## Overview
 
 This guide explains how to set up the new MySQL-based authentication system for the SPAS (Smart Power Alert System) Next.js application. The system has been completely migrated from NextAuth with Google OAuth to a custom email/password authentication system using Prisma ORM and MySQL.
 
 ## Features
 
-- ✅ **Email/Password Authentication** - Secure user registration and login
-- ✅ **MySQL Database** - Persistent user storage with Prisma ORM
-- ✅ **JWT Tokens** - Secure session management with httpOnly cookies
-- ✅ **Password Hashing** - bcrypt with salt rounds for security
-- ✅ **Session Middleware** - Automatic route protection
-- ✅ **Clean UI** - Updated login/signup forms without OAuth
+- **Email/Password Authentication** - Secure user registration and login
+- **MySQL Database** - Persistent user storage with Prisma ORM
+- **JWT Tokens** - Secure session management with httpOnly cookies
+- **Password Hashing** - bcrypt with salt rounds for security
+- **Session Middleware** - Automatic route protection
+- **Clean UI** - Updated login/signup forms without OAuth
 
 ## Database Schema
 
@@ -221,12 +231,12 @@ function MyComponent() {
 ## Migration Notes
 
 ### Changes Made
-- ✅ Removed NextAuth completely
-- ✅ Removed Google OAuth functionality  
-- ✅ Created custom authentication system
-- ✅ Updated all frontend components
-- ✅ Implemented secure cookie handling
-- ✅ Added route protection middleware
+- Removed NextAuth completely
+- Removed Google OAuth functionality  
+- Created custom authentication system
+- Updated all frontend components
+- Implemented secure cookie handling
+- Added route protection middleware
 
 ### What's No Longer Needed
 - Google OAuth credentials
